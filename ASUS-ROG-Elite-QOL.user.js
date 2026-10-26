@@ -1,15 +1,15 @@
 // ==UserScript==
-// @name        ASUS ROG Elite QOL
-// @description Toggle wallpapers and Unavailable (Complete, Sold Out, Locked) cards
-// @author      Lone Destroyer
-// @license     MIT
-// @match       https://rog.asus.com/*/elite*
-// @match       https://rog.asus.com/elite*
-// @icon        https://rog.asus.com/rog/nuxtStatic/img/favicon.ico
-// @version     1.0.7
-// @namespace   https://github.com/LoneDestroyer
-// @downloadURL https://github.com/LoneDestroyer/ASUS-ROG-Elite-QOL/raw/refs/heads/main/ASUS-ROG-Elite-QOL.user.js
-// @updateURL   https://github.com/LoneDestroyer/ASUS-ROG-Elite-QOL/raw/refs/heads/main/ASUS-ROG-Elite-QOL.user.js
+// @name         ASUS ROG Elite QOL
+// @description  Toggle wallpapers and Unavailable (Complete, Sold Out, Locked) cards
+// @author       Lone Destroyer (Fixed for UA/RU locales)
+// @license      MIT
+// @match        https://rog.asus.com/*/elite*
+// @match        https://rog.asus.com/elite*
+// @icon         https://rog.asus.com/rog/nuxtStatic/img/favicon.ico
+// @version      1.0.8
+// @namespace    https://github.com/apollo2k4
+// @downloadURL  https://github.com/apollo2k4/ASUS-ROG-Elite-QOL/raw/refs/heads/main/ASUS-ROG-Elite-QOL.user.js
+// @updateURL    https://github.com/apollo2k4/ASUS-ROG-Elite-QOL/raw/refs/heads/main/ASUS-ROG-Elite-QOL.user.js
 // ==/UserScript==
 
 (function() {
@@ -51,8 +51,8 @@
                 .elite-qol-header-hover {position:absolute;top:0;left:0;width:100%;height:100%;background:#c20013;opacity:0;cursor:pointer;transition:opacity 0.2s;z-index:1;}
                 .elite-qol-header-btn:hover .elite-qol-header-hover,.elite-qol-header-btn:focus .elite-qol-header-hover {opacity:1;}
                 .elite-qol-header-btn span {font-weight:bold;font-size:16px;color:#fff;letter-spacing:1.5px;z-index:2;position:relative;}
-                .elite-qol-content {padding:10px;display:flex;flex-direction:column;;}
-                .elite-qol-label {display:flex;align-items:center;gap:4px;}
+                .elite-qol-content {padding:10px;display:flex;flex-direction:column;}
+                .elite-qol-label {display:flex;align-items:center;gap:4px;cursor:pointer;color:#fff;}
                 .elite-qol-label-group {display:flex;flex-direction:column;margin-left:24px;}`;
             document.head.appendChild(style);
         }
@@ -98,7 +98,7 @@
             expanded = !expanded;
             content.style.display = expanded ? 'flex' : 'none';
             headerBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-            headerBtn.blur(); // Remove focus from button after click to hide hover effect
+            headerBtn.blur();
         };
         headerBtn.onkeydown = (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -117,7 +117,6 @@
             checkbox.checked = userPreferences[key];
             refs[key] = checkbox;
 
-            // Descriptions on hover
             let description = '';
             switch (key) {
                 case 'hideWallpapers':
@@ -127,7 +126,7 @@
                     description = 'Hides anything containing a cover, this will include Completed, Sold Out and Locked cards';
                     break;
                 case 'showCompleted':
-                    description = 'Hides Completed Activities - some do not get marked as complete by ASUS :(';
+                    description = 'Hides Completed Activities';
                     break;
                 case 'showSoldOut':
                     description = 'Hides Sold Out Rewards';
@@ -146,17 +145,14 @@
             checkboxLabel.title = description;
             parent.appendChild(checkboxLabel);
 
-            // Changes "Unavailable" & childs checkboxes when toggled
             checkbox.onchange = () => {
                 userPreferences[key] = checkbox.checked;
-                // If parent is toggled, update children
                 if (key === 'showUnavailable' && children) {
                     children.forEach(c => {
                         userPreferences[c.key] = checkbox.checked;
                         refs[c.key].checked = checkbox.checked;
                     });
                 }
-                // If child is untoggled, untoggle parent
                 if (['showCompleted', 'showSoldOut', 'showLocked'].includes(key)) {
                     if (![userPreferences.showCompleted, userPreferences.showSoldOut, userPreferences.showLocked].every(Boolean)) {
                         userPreferences.showUnavailable = false;
@@ -169,26 +165,42 @@
         }
     }
 
-    // Compact term lists and matcher
-    const MH_MONSTERS=['zinogre','deviljho','cologne'],
-          WALLPAPER_TERMS=['wallpaper','rog x evangelion｜eva-02｜3840x2160'],
-          STATUS_MAP=[[ 'showCompleted',['complete','finish','zakończ'] ],[ 'showSoldOut',['sold out','wyprzedane'] ],[ 'showLocked',['locked','blocked','zablokowano'] ]];
+    // Term lists and matcher (expanded with Ukrainian/Russian localizations)
+    const MH_MONSTERS = ['zinogre', 'deviljho', 'cologne'],
+          WALLPAPER_TERMS = ['wallpaper', 'rog x evangelion｜eva-02｜3840x2160', 'шпалери', 'обои'],
+          STATUS_MAP = [
+              [ 'showCompleted', ['complete', 'finish', 'zakończ', 'закінчити', 'закінчено', 'выполнено', 'завершено'] ],
+              [ 'showSoldOut', ['sold out', 'wyprzedane', 'продано', 'распродано', 'розпродано'] ],
+              [ 'showLocked', ['locked', 'blocked', 'zablokowano', 'заблокировано', 'заблоковано'] ]
+          ];
 
-    const matchAny=(s,terms)=>terms.some(t=>new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-zA-Z])`,'i').test(s));
+    // Smart matcher: uses .includes() for Cyrillic/local terms, exact regex for English
+    const matchAny = (s, terms) => terms.some(t => {
+        if (/[а-яіїєґapostrophe]/i.test(t)) {
+            return s.includes(t);
+        }
+        const escaped = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return new RegExp(`\\b${escaped}(?![a-zA-Z])`, 'i').test(s);
+    });
 
-    // Returns true if a card should be hidden - based on preferences and card content
     function shouldHideCard(cardTitle, cardStatus, userPreferences){
         return (
             userPreferences.hideWallpapers &&
-            (matchAny(cardTitle,WALLPAPER_TERMS) || (cardTitle.includes('monster hunter now') && matchAny(cardTitle,MH_MONSTERS)))
-        ) || STATUS_MAP.some(([pref,terms])=>userPreferences[pref] && matchAny(cardStatus,terms));
+            (matchAny(cardTitle, WALLPAPER_TERMS) || (cardTitle.includes('monster hunter now') && matchAny(cardTitle, MH_MONSTERS)))
+        ) || STATUS_MAP.some(([pref, terms]) => userPreferences[pref] && matchAny(cardStatus, terms));
     }
 
-    // Hides / Shows cards based on user preference
+    // Flexible card hider using substring class selectors
     function hideCards() {
-        document.querySelectorAll('.PassPortCard__passPortCard__2N9Fz').forEach(card => {
-            const cardTitle = card.querySelector('.PassPortCard__title__2Izls')?.textContent.toLowerCase() || '';
-            const cardStatus = card.querySelector('.PassPortCard__cover__1C8of .PassPortCard__status__1r8Ov p.PassPortCard__text__1De4n')?.textContent.toLowerCase() || '';
+        document.querySelectorAll('div[class*="PassPortCard"], div[class*="passPortCard"]').forEach(card => {
+            const titleEl = card.querySelector('[class*="title"], [class*="Title"]');
+            const statusEl = card.querySelector('[class*="status"], [class*="Status"], [class*="text"], [class*="Text"]');
+            
+            if (!titleEl) return;
+
+            const cardTitle = titleEl.textContent.toLowerCase();
+            const cardStatus = statusEl ? statusEl.textContent.toLowerCase() : '';
+
             if (shouldHideCard(cardTitle, cardStatus, userPreferences)) {
                 card.style.display = 'none';
             } else {
@@ -197,7 +209,7 @@
         });
     }
 
-    // Observer
+    // Observer to handle dynamic loading / pagination
     new MutationObserver(hideCards).observe(document.body, { childList: true, subtree: true });
 
     // Initialize panel and hide cards
